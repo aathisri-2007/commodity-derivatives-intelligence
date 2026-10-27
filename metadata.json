@@ -1,0 +1,6 @@
+{
+  "name": "Commodity Derivatives Intelligence",
+  "description": "Analytical intelligence platform analyzing relative pricing differences, term structures, and carry dynamics across MCX gold futures contracts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

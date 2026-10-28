@@ -9,14 +9,17 @@ import {
   RefreshCw,
   Download,
   Database,
-  Calendar,
-  Layers,
+  ShieldAlert,
 } from "lucide-react";
 
 interface Props {
   dataStatus: DataStatus | null;
   onRefresh: () => void;
 }
+
+// In dev, VITE_API_URL is undefined → falls back to "/api" (Node proxy handles it)
+// In production, VITE_API_URL = "https://commodity-intel-api.onrender.com/api"
+const API_BASE = (import.meta as any).env?.VITE_API_URL || "/api";
 
 export const DataManagementView: React.FC<Props> = ({ dataStatus, onRefresh }) => {
   const [file, setFile] = useState<File | null>(null);
@@ -49,11 +52,16 @@ export const DataManagementView: React.FC<Props> = ({ dataStatus, onRefresh }) =
   }
 
   async function handleResetSample() {
+    const confirmed = window.confirm(
+      "⚠️ WARNING: This will DELETE all current data — including your real MCX uploads — and replace it with the synthetic test fixture.\n\nAre you sure you want to proceed?"
+    );
+    if (!confirmed) return;
+
     setResetting(true);
     try {
       await resetSampleData();
       onRefresh();
-      alert("Verified historical MCX Bhavcopy sample dataset successfully reloaded.");
+      alert("Synthetic test fixture reloaded. Your real MCX data has been replaced.");
     } catch (err: any) {
       alert("Reset error: " + err.message);
     } finally {
@@ -63,19 +71,30 @@ export const DataManagementView: React.FC<Props> = ({ dataStatus, onRefresh }) =
 
   return (
     <div className="space-y-6">
-      {/* Upload Box & Instructions */}
+      <div>
+        <h1 className="font-display text-4xl text-stone-900 tracking-tight leading-tight">
+          Data Management
+        </h1>
+        <p className="text-[13px] text-stone-500 mt-2 max-w-2xl leading-relaxed">
+          Upload real MCX Bhavcopy CSVs, audit rejected rows, and export normalized reports.
+        </p>
+      </div>
+
+      {/* Upload + Export panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-              <UploadCloud className="w-4 h-4 text-amber-400" />
-              Upload Official MCX Daily Bhavcopy CSV
-            </h3>
-            <span className="text-[11px] font-mono text-slate-400">Strict Schema Verification</span>
+        <div className="lg:col-span-2 bg-white border border-stone-200/80 rounded-lg p-5 card-shadow space-y-4">
+          <div className="border-b border-stone-200/80 pb-3 flex items-center justify-between">
+            <h2 className="font-display text-xl text-stone-900 flex items-center gap-2">
+              <UploadCloud className="w-4 h-4 text-amber-700" />
+              Upload MCX Daily Bhavcopy
+            </h2>
+            <span className="text-[10px] font-mono px-2 py-0.5 bg-stone-100 text-stone-600 rounded border border-stone-200">
+              Strict Schema
+            </span>
           </div>
 
           <form onSubmit={handleUpload} className="space-y-4">
-            <div className="border-2 border-dashed border-slate-700 hover:border-amber-500/50 rounded-xl p-6 text-center transition bg-slate-950/40">
+            <div className="border-2 border-dashed border-stone-300 hover:border-amber-500/60 rounded-lg p-6 text-center transition bg-stone-50/40">
               <input
                 type="file"
                 accept=".csv"
@@ -84,176 +103,202 @@ export const DataManagementView: React.FC<Props> = ({ dataStatus, onRefresh }) =
                 className="hidden"
               />
               <label htmlFor="bhavcopy-file" className="cursor-pointer block space-y-2">
-                <FileText className="w-8 h-8 text-amber-400 mx-auto" />
-                <div className="text-xs font-semibold text-slate-200">
-                  {file ? file.name : "Click to select or drag and drop official MCX Bhavcopy CSV"}
+                <FileText className="w-7 h-7 text-amber-700 mx-auto" />
+                <div className="text-[12px] font-semibold text-stone-700">
+                  {file ? file.name : "Click to select or drag a Bhavcopy CSV"}
                 </div>
-                <div className="text-[11px] text-slate-500 font-mono">
-                  Expected fields: Symbol, Date, ExpiryDate, Open, High, Low, Close, Volume, OpenInterest
+                <div className="text-[10px] text-stone-500 font-mono">
+                  Expected: Symbol, Date, ExpiryDate, Open, High, Low, Close, Volume, OpenInterest
                 </div>
               </label>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-slate-400 mb-1">Returned Date Format</label>
+                <label className="block text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-1.5">
+                  Returned Date Format
+                </label>
                 <select
                   value={dateFormat}
                   onChange={(e) => setDateFormat(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded px-3 py-2"
+                  className="w-full bg-stone-50 border border-stone-300 text-stone-800 font-mono text-[12px] rounded-md px-3 py-2"
                 >
-                  <option value="MM/DD/YYYY">MM/DD/YYYY (MCX standard returned)</option>
-                  <option value="DD/MM/YYYY">DD/MM/YYYY (MCX standard request)</option>
+                  <option value="MM/DD/YYYY">MM/DD/YYYY (MCX standard)</option>
+                  <option value="DD/MM/YYYY">DD/MM/YYYY</option>
                 </select>
-                <span className="text-[10px] text-slate-500 font-sans">
-                  Section 5: Requests use DD/MM/YYYY; returned uses MM/DD/YYYY.
+                <span className="text-[10px] text-stone-400 mt-1 block">
+                  MCX returns MM/DD/YYYY; requests use DD/MM/YYYY
                 </span>
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Expected Request Date (Optional)</label>
+                <label className="block text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-1.5">
+                  Expected Request Date (Optional)
+                </label>
                 <input
                   type="date"
                   value={expectedDate}
                   onChange={(e) => setExpectedDate(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded px-3 py-2"
+                  className="w-full bg-stone-50 border border-stone-300 text-stone-800 font-mono text-[12px] rounded-md px-3 py-2"
                 />
-                <span className="text-[10px] text-slate-500 font-sans">
-                  Rejects MCX silent holiday/rollback substitution if mismatched.
+                <span className="text-[10px] text-stone-400 mt-1 block">
+                  Rejects silent holiday substitution
                 </span>
               </div>
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-slate-500 font-mono">
+              <span className="text-[11px] text-stone-500 font-mono">
                 {file ? `${(file.size / 1024).toFixed(1)} KB selected` : "No file selected"}
               </span>
-
               <button
                 type="submit"
                 disabled={!file || uploading}
-                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition disabled:opacity-50 cursor-pointer"
+                className="px-5 py-2 bg-amber-700 hover:bg-amber-800 text-white font-medium text-[12px] rounded-md transition shadow-sm disabled:opacity-50"
               >
-                {uploading ? "Parsing & Validating..." : "Ingest & Validate Bhavcopy"}
+                {uploading ? "Parsing & Validating..." : "Ingest & Validate"}
               </button>
             </div>
           </form>
 
           {uploadError && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-300 text-xs flex items-center gap-2">
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-md text-rose-700 text-[12px] flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span>{uploadError}</span>
             </div>
           )}
 
           {uploadResult && (
-            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-xs space-y-2">
-              <div className="font-bold text-emerald-300 flex items-center gap-1.5">
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-md space-y-2">
+              <div className="text-[12px] font-semibold text-emerald-800 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" />
-                Ingestion Completed Successfully
+                Ingestion Completed
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px] text-slate-300">
-                <div>Total Processed: <strong>{uploadResult.total_rows_processed}</strong></div>
-                <div>Accepted: <strong className="text-emerald-400">{uploadResult.accepted_rows}</strong></div>
-                <div>Rejected: <strong className="text-rose-400">{uploadResult.rejected_rows}</strong></div>
-                <div>Duplicates: <strong>{uploadResult.duplicate_rows}</strong></div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
+                <div>
+                  <span className="text-stone-500">Processed:</span>{" "}
+                  <strong className="text-stone-900">{uploadResult.total_rows_processed}</strong>
+                </div>
+                <div>
+                  <span className="text-stone-500">Accepted:</span>{" "}
+                  <strong className="text-emerald-700">{uploadResult.accepted_rows}</strong>
+                </div>
+                <div>
+                  <span className="text-stone-500">Rejected:</span>{" "}
+                  <strong className="text-rose-700">{uploadResult.rejected_rows}</strong>
+                </div>
+                <div>
+                  <span className="text-stone-500">Duplicates:</span>{" "}
+                  <strong className="text-stone-700">{uploadResult.duplicate_rows}</strong>
+                </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* Quick Operations & Export Panel */}
+        {/* Right column: export + reset */}
         <div className="space-y-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-              <Database className="w-4 h-4 text-amber-400" />
-              Certified Sample Dataset
-            </h4>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Reset database with verified historical MCX daily observations (2024–2026) for GOLDM, GOLDTEN, GOLDGUINEA, and GOLDPETAL.
+          {/* Export panel */}
+          <div className="bg-white border border-stone-200/80 rounded-lg p-5 card-shadow space-y-3">
+            <h2 className="font-display text-lg text-stone-900 flex items-center gap-2">
+              <Download className="w-4 h-4 text-sky-700" />
+              Export Reports
+            </h2>
+            <p className="text-[11px] text-stone-500 leading-relaxed">
+              Download audited CSV reports directly from the backend API.
+            </p>
+            <div className="space-y-2">
+              <a
+                href={`${API_BASE}/reports/export?type=prices&format=csv`}
+                className="flex items-center justify-between py-2 px-3 bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 text-[12px] font-mono rounded-md transition"
+              >
+                <span>Normalized Prices</span>
+                <Download className="w-3.5 h-3.5" />
+              </a>
+              <a
+                href={`${API_BASE}/reports/export?type=signals&format=csv`}
+                className="flex items-center justify-between py-2 px-3 bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 text-[12px] font-mono rounded-md transition"
+              >
+                <span>Signals Log</span>
+                <Download className="w-3.5 h-3.5" />
+              </a>
+              <a
+                href={`${API_BASE}/reports/export?type=backtest&format=csv`}
+                className="flex items-center justify-between py-2 px-3 bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 text-[12px] font-mono rounded-md transition"
+              >
+                <span>Backtest Trades</span>
+                <Download className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+
+          {/* Reset (danger) panel */}
+          <div className="bg-amber-50 border border-amber-200/80 rounded-lg p-5 card-shadow space-y-3">
+            <h2 className="font-display text-lg text-amber-900 flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4" />
+              Danger Zone
+            </h2>
+            <p className="text-[11px] text-stone-700 leading-relaxed">
+              Reloading the synthetic fixture will <strong className="text-rose-700">delete all current
+              data</strong> — including real MCX uploads — and replace it with fake test data. Only use
+              this if you want to reset.
             </p>
             <button
               onClick={handleResetSample}
               disabled={resetting}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white hover:bg-rose-50 border border-rose-300 text-rose-700 text-[12px] font-medium rounded-md transition"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${resetting ? "animate-spin" : ""}`} />
-              Reload Certified MCX Dataset
+              Replace with Synthetic Fixture
             </button>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-              <Download className="w-4 h-4 text-blue-400" />
-              Export Audited Reports
-            </h4>
-            <div className="space-y-2 text-xs font-mono">
-              <a
-                href="/api/reports/export?type=prices&format=csv"
-                download
-                className="block text-center py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded transition"
-              >
-                Download Normalized Prices CSV
-              </a>
-              <a
-                href="/api/reports/export?type=signals&format=csv"
-                download
-                className="block text-center py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded transition"
-              >
-                Download Signals Log CSV
-              </a>
-              <a
-                href="/api/reports/export?type=backtest&format=csv"
-                download
-                className="block text-center py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded transition"
-              >
-                Download Backtest Trades CSV
-              </a>
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Rejection Audit Log */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-400" />
-            Data Quality & Ingestion Rejection Audit Log
-          </h4>
-          <span className="text-xs font-mono text-slate-500">
-            {dataStatus?.recent_rejections?.length || 0} flagged records
+      {/* Rejection audit log */}
+      <div className="bg-white border border-stone-200/80 rounded-lg overflow-hidden card-shadow">
+        <div className="px-6 py-4 border-b border-stone-200/80 flex items-center justify-between">
+          <h2 className="font-display text-lg text-stone-900 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-600" />
+            Rejection Audit Log
+          </h2>
+          <span className="text-[11px] font-mono text-stone-500">
+            {dataStatus?.recent_rejections?.length || 0} flagged
           </span>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-mono">
-            <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase text-[11px]">
-              <tr>
-                <th className="py-2.5 px-4">Row #</th>
-                <th className="py-2.5 px-4">Raw Symbol</th>
-                <th className="py-2.5 px-4">Raw Date</th>
-                <th className="py-2.5 px-4">Raw Expiry</th>
-                <th className="py-2.5 px-4 text-rose-400">Rejection Rationale</th>
-                <th className="py-2.5 px-4">Logged At</th>
+          <table className="w-full text-left text-[12px]">
+            <thead className="bg-stone-50/60 border-b border-stone-200/80">
+              <tr className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
+                <th className="py-3 px-4">Row</th>
+                <th className="py-3 px-4">Symbol</th>
+                <th className="py-3 px-4">Date</th>
+                <th className="py-3 px-4">Expiry</th>
+                <th className="py-3 px-4 text-rose-700">Reason</th>
+                <th className="py-3 px-4">Logged</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 text-slate-200">
+            <tbody className="divide-y divide-stone-100">
               {dataStatus?.recent_rejections && dataStatus.recent_rejections.length > 0 ? (
                 dataStatus.recent_rejections.map((rej) => (
-                  <tr key={rej.id} className="hover:bg-slate-800/30">
-                    <td className="py-2.5 px-4 text-slate-400">{rej.row_number}</td>
-                    <td className="py-2.5 px-4 font-bold text-slate-200">'{rej.raw_symbol}'</td>
-                    <td className="py-2.5 px-4">{rej.raw_date}</td>
-                    <td className="py-2.5 px-4">{rej.raw_expiry}</td>
-                    <td className="py-2.5 px-4 text-rose-300 font-sans text-xs">{rej.rejection_reason}</td>
-                    <td className="py-2.5 px-4 text-slate-500">{rej.created_at.slice(0, 19)}</td>
+                  <tr key={rej.id} className="hover:bg-stone-50/60">
+                    <td className="py-2.5 px-4 text-stone-500 font-mono tabular">{rej.row_number}</td>
+                    <td className="py-2.5 px-4 font-mono font-medium text-stone-800">
+                      {rej.raw_symbol}
+                    </td>
+                    <td className="py-2.5 px-4 text-stone-600 font-mono tabular">{rej.raw_date}</td>
+                    <td className="py-2.5 px-4 text-stone-600 font-mono tabular">{rej.raw_expiry}</td>
+                    <td className="py-2.5 px-4 text-rose-700 text-[11px]">{rej.rejection_reason}</td>
+                    <td className="py-2.5 px-4 text-stone-400 font-mono text-[11px] tabular">
+                      {rej.created_at?.slice(0, 19)}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-slate-500 font-sans">
-                    No rejections in recent ingestion runs. All records passed strict schema and OHLC integrity checks.
+                  <td colSpan={6} className="py-8 text-center text-stone-400 text-[12px]">
+                    No rejections in recent ingestion runs.
                   </td>
                 </tr>
               )}
@@ -264,3 +309,5 @@ export const DataManagementView: React.FC<Props> = ({ dataStatus, onRefresh }) =
     </div>
   );
 };
+
+export default DataManagementView;

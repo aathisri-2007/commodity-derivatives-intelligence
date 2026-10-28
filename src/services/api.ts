@@ -8,7 +8,7 @@ import {
   DataStatus,
 } from "../types";
 
-const BASE_URL = "/api";
+const BASE_URL = (import.meta as any).env?.VITE_API_URL || "/api";
 
 export async function fetchHealth(): Promise<{ status: string; service: string }> {
   const res = await fetch(`${BASE_URL}/health`);
